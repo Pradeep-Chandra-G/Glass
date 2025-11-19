@@ -1,0 +1,72 @@
+spring:
+  application:
+    name: quiz-app
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/quizdb
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+  
+  session:
+    jdbc:
+      initialize-schema: always
+      table-name: SESSION
+    timeout: 7200 # 2 hours
+  
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    session:
+      cookie:
+        http-only: true
+        secure: false # Set to true in production with HTTPS
+        same-site: strict
+
+# Quiz App Specific Configuration
+quiz:
+  timer:
+    sync-interval: 1000 # milliseconds - how often to broadcast timer
+  pagination:
+    default-page-size: 10
+    max-page-size: 100
+  auto-save:
+    enabled: true
+    debounce-ms: 2000
+  security:
+    password:
+      min-length: 8
+    session:
+      max-concurrent: 1 # Max concurrent sessions per user
+
+logging:
+  level:
+    com.quizapp: DEBUG
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: DEBUG
