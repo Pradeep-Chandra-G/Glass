@@ -1,5 +1,6 @@
 package app.glass.Glass.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,8 +12,14 @@ public class Submission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long quizId;
-    private Long questionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "quiz_attempt_id", nullable = false)
+    @JsonBackReference
+    private QuizAttempt quizAttempt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "question_id", nullable = false)
+    private Question question;
 
     @ElementCollection
     @CollectionTable(name = "submission_answers")
@@ -22,6 +29,7 @@ public class Submission {
 
     private LocalDateTime submittedAt;
 
+    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -30,20 +38,20 @@ public class Submission {
         this.id = id;
     }
 
-    public Long getQuizId() {
-        return quizId;
+    public QuizAttempt getQuizAttempt() {
+        return quizAttempt;
     }
 
-    public void setQuizId(Long quizId) {
-        this.quizId = quizId;
+    public void setQuizAttempt(QuizAttempt quizAttempt) {
+        this.quizAttempt = quizAttempt;
     }
 
-    public Long getQuestionId() {
-        return questionId;
+    public Question getQuestion() {
+        return question;
     }
 
-    public void setQuestionId(Long questionId) {
-        this.questionId = questionId;
+    public void setQuestion(Question question) {
+        this.question = question;
     }
 
     public List<Long> getSelectedOptionIds() {

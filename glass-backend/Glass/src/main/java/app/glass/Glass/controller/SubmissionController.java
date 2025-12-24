@@ -1,5 +1,6 @@
 package app.glass.Glass.controller;
 
+import app.glass.Glass.dto.SubmitAnswerRequest;
 import app.glass.Glass.service.SubmissionService;
 import app.glass.Glass.model.Submission;
 import org.springframework.web.bind.annotation.*;
@@ -17,15 +18,16 @@ public class SubmissionController {
     }
 
     @PostMapping("/submit")
-    public Submission submit(
-            @RequestParam Long quizId,
-            @RequestParam Long questionId,
-            @RequestBody List<Long> selectedOptionIds
-    ) {
+    public Submission submit(@RequestBody SubmitAnswerRequest request) {
         return submissionService.submitAnswer(
-                quizId,
-                questionId,
-                selectedOptionIds
+                request.getAttemptId(),
+                request.getQuestionId(),
+                request.getSelectedOptionIds()
         );
+    }
+
+    @GetMapping("/attempt/{attemptId}")
+    public List<Submission> getAttemptSubmissions(@PathVariable Long attemptId) {
+        return submissionService.getAttemptSubmissions(attemptId);
     }
 }

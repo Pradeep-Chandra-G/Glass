@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import QueryClientContextProvider from "../app/components/context/QueryClientContextProvider";
 import { QuizTimerProvider } from "./components/context/QuizTimerContext";
+import { AuthProvider } from "./components/context/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +30,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        {/* ✅ Client Provider safely wrapped */}
         <QueryClientContextProvider>
-          <QuizTimerProvider>{children}</QuizTimerProvider>
+          <AuthProvider>
+            <QuizTimerProvider>{children}</QuizTimerProvider>
+          </AuthProvider>
         </QueryClientContextProvider>
       </body>
     </html>

@@ -2,14 +2,14 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useQuizTimer } from "../../components/context/QuizTimerContext";
-import { submitAnswer } from "@/app/api/submission";
-
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../../components/context/AuthContext";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import QuizQuestion from "../ui/QuizQuestion";
 import NavigationButtons from "../ui/NavigationButtons";
 import StatusBar from "../ui/StatusBar";
 import QuestionsList from "../ui/QuestionsList";
 import { fetchQuizQuestions } from "../../api/quiz";
+import { submitAnswer } from "@/app/api/submission";
 import { QuizQuestionDTO } from "@/app/types/quiz";
 
 interface AnswerRecord {
@@ -20,7 +20,30 @@ interface AnswerRecord {
 }
 
 function QuizSection({ quizId }: { quizId: string }) {
-  /* ------------------ FETCH ALL QUESTIONS ONCE ------------------ */
+  const { token } = useAuth();
+  const [attemptId, setAttemptId] = useState<number | null>(null);
+  const { expired, expire } = useQuizTimer();
+
+  /* ------------------ START ATTEMPT ------------------ */
+  useEffect(() => {
+    const startAttempt = async () => {
+      const res = await fetch(
+        `http://localhost:8080/api/attempt/start/${quizId}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const data = await res.json();
+      setAttemptId(data.id);
+    };
+
+    if (token && !attemptId) {
+      startAttempt();
+    }
+  }, [token, quizId, attemptId]);
+
+  /* ------------------ FETCH QUESTIONS ------------------ */
   const { data: questions = [] } = useQuery<QuizQuestionDTO[]>({
     queryKey: ["quiz-questions", quizId],
     queryFn: () => fetchQuizQuestions(quizId),
@@ -28,24 +51,16 @@ function QuizSection({ quizId }: { quizId: string }) {
     gcTime: Infinity,
   });
 
-  /* ------------------ TIMER (AUTO SUBMIT) ------------------ */
-  const { expired } = useQuizTimer();
-
-  /* ------------------ QUESTION IDS ------------------ */
   const questionIds = useMemo(() => questions.map((q) => q.id), [questions]);
-
   const TOTAL_QUESTIONS = questionIds.length;
 
-  /* ------------------ CURRENT QUESTION ------------------ */
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentQuestionId = questionIds[currentIndex];
 
-  /* ------------------ ANSWERS (INIT AFTER QUESTIONS LOAD) ------------------ */
   const [answers, setAnswers] = useState<AnswerRecord>({});
 
   useEffect(() => {
-    if (!questionIds.length) return;
-    if (Object.keys(answers).length) return; // prevent re-init
+    if (!questionIds.length || Object.keys(answers).length) return;
 
     const init: AnswerRecord = {};
     questionIds.forEach((id) => {
@@ -55,27 +70,33 @@ function QuizSection({ quizId }: { quizId: string }) {
     setAnswers(init);
   }, [questionIds]);
 
-  /* ------------------ AUTO SUBMIT ON TIMEOUT ------------------ */
-  useEffect(() => {
-    if (!expired) return;
-
-    const snapshot = answers; // freeze state
-
-    const submitAll = async () => {
+  /* ------------------ COMPLETE ATTEMPT ON TIMEOUT ------------------ */
+  const completeMutation = useMutation({
+    mutationFn: async () => {
+      // Submit all pending answers
       await Promise.all(
-        Object.entries(snapshot)
+        Object.entries(answers)
           .filter(([_, v]) => v.answer?.length)
           .map(([qid, v]) =>
-            submitAnswer(Number(quizId), Number(qid), v.answer!)
+            submitAnswer(attemptId!, Number(qid), v.answer!)
           )
       );
 
-      console.log("AUTO SUBMITTED");
-      // redirect / show submitted screen here
-    };
+      // Complete the attempt
+      await fetch(`http://localhost:8080/api/attempt/complete/${attemptId}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+  });
 
-    submitAll();
-  }, [expired]);
+  useEffect(() => {
+    if (expired && attemptId) {
+      completeMutation.mutate();
+      // Redirect to results
+      window.location.href = `/results/${attemptId}`;
+    }
+  }, [expired, attemptId]);
 
   /* ------------------ OPTION TOGGLE ------------------ */
   const toggleOption = (
@@ -96,7 +117,7 @@ function QuizSection({ quizId }: { quizId: string }) {
       return {
         ...prev,
         [questionId]: {
-          ...prevEntry, // ✅ preserve everything
+          ...prevEntry,
           answer: updated,
           status: "seen",
         },
@@ -104,13 +125,10 @@ function QuizSection({ quizId }: { quizId: string }) {
     });
   };
 
-  /* ------------------ NAVIGATION ------------------ */
   const nextQuestion = () =>
     setCurrentIndex((i) => Math.min(i + 1, TOTAL_QUESTIONS - 1));
-
   const prevQuestion = () => setCurrentIndex((i) => Math.max(i - 1, 0));
 
-  /* ------------------ STATUS COUNTS ------------------ */
   const seen = Object.values(answers).filter((a) => a.status === "seen").length;
   const unseen = Object.values(answers).filter(
     (a) => a.status === "unseen"
@@ -122,10 +140,28 @@ function QuizSection({ quizId }: { quizId: string }) {
     (a) => a.status === "review"
   ).length;
 
-  /* ------------------ RENDER ------------------ */
+  const handleSaveAndNext = async () => {
+    if (answers[currentQuestionId]?.answer?.length && attemptId) {
+      // Submit to backend
+      await submitAnswer(
+        attemptId,
+        currentQuestionId,
+        answers[currentQuestionId].answer!
+      );
+
+      setAnswers((prev) => ({
+        ...prev,
+        [currentQuestionId]: {
+          ...prev[currentQuestionId],
+          status: "answered",
+        },
+      }));
+    }
+    nextQuestion();
+  };
+
   return (
     <div className="flex gap-8 mx-16 w-full text-black h-[95%]">
-      {/* LEFT */}
       <div className="flex flex-col w-[70%] bg-white rounded-md">
         {currentQuestionId && (
           <QuizQuestion
@@ -138,7 +174,6 @@ function QuizSection({ quizId }: { quizId: string }) {
         )}
       </div>
 
-      {/* RIGHT */}
       <div className="w-[30%] bg-white p-6 rounded-md flex flex-col">
         <StatusBar
           answered={answered}
@@ -171,18 +206,7 @@ function QuizSection({ quizId }: { quizId: string }) {
               },
             }))
           }
-          onSaveAndNext={() => {
-            if (answers[currentQuestionId]?.answer?.length) {
-              setAnswers((prev) => ({
-                ...prev,
-                [currentQuestionId]: {
-                  ...prev[currentQuestionId],
-                  status: "answered",
-                },
-              }));
-            }
-            nextQuestion();
-          }}
+          onSaveAndNext={handleSaveAndNext}
         />
       </div>
     </div>
