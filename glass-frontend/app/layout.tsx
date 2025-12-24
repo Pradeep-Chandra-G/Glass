@@ -1,0 +1,39 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import QueryClientContextProvider from "../app/components/context/QueryClientContextProvider";
+import { QuizTimerProvider } from "./components/context/QuizTimerContext";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Glass Quiz",
+  description: "A modern quiz application built with Next.js and Tailwind CSS.",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+      >
+        {/* ✅ Client Provider safely wrapped */}
+        <QueryClientContextProvider>
+          <QuizTimerProvider>{children}</QuizTimerProvider>
+        </QueryClientContextProvider>
+      </body>
+    </html>
+  );
+}
